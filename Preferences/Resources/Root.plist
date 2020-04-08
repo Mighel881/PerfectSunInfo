@@ -37,6 +37,10 @@
 			<string>PSGroupCell</string>
 			<key>label</key>
 			<string>DISPLAY OPTIONS</string>
+			<key>footerText</key>
+			<string>Sunrise / Sunset Time Is Based On Local Time Zone</string>
+			<key>footerAlignment</key>
+			<integer>1</integer>
 		</dict>
 		<dict>
 			<key>cell</key>

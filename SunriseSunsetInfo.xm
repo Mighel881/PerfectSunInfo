@@ -2,6 +2,7 @@
 
 #import "SparkColourPickerUtils.h"
 #import <Cephei/HBPreferences.h>
+#import <os/log.h>
 
 #define DegreesToRadians(degrees) (degrees * M_PI / 180)
 
@@ -94,7 +95,16 @@ static void loadDeviceScreenDimensions()
 
 				[self updateFrame];
 
-				[NSTimer scheduledTimerWithTimeInterval: 3600 target: self selector: @selector(updateText) userInfo: nil repeats: YES];
+				NSDateComponents *comps = [[NSCalendar currentCalendar] 
+					components: (NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay | NSCalendarUnitHour | NSCalendarUnitMinute) 
+					fromDate: [NSDate date]];
+				[comps setDay: [comps day] + 1];
+				[comps setHour: 0];
+				[comps setMinute: 1];
+				NSDate *date = [[NSCalendar currentCalendar] dateFromComponents: comps];
+				NSTimer *timer = [[NSTimer alloc] initWithFireDate: date interval: 86400 target: self selector: @selector(updateText) userInfo: nil repeats: YES];
+				[timer setTolerance: 10];
+				[[NSRunLoop currentRunLoop] addTimer: timer forMode:NSDefaultRunLoopMode];
 
 				CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)&orientationChanged, CFSTR("com.apple.springboard.screenchanged"), NULL, 0);
 				CFNotificationCenterAddObserver(CFNotificationCenterGetLocalCenter(), NULL, (CFNotificationCallback)&orientationChanged, CFSTR("UIWindowDidRotateNotification"), NULL, CFNotificationSuspensionBehaviorCoalesce);
@@ -211,13 +221,7 @@ static void loadDeviceScreenDimensions()
 	{
 		if(sunriseSunsetInfoWindow && sunriseSunsetInfoLabel)
 		{
-			if(![[%c(SBCoverSheetPresentationManager) sharedInstance] isPresented] && ![[%c(SBControlCenterController) sharedInstance] isVisible] || [[sunriseSunsetInfoLabel text] length] <= 0)
-			{
-				NSString *info = formattedString();
-				[sunriseSunsetInfoWindow setHidden: NO];
-				[sunriseSunsetInfoLabel setText: info];
-			}
-			else [sunriseSunsetInfoWindow setHidden: YES];
+			[sunriseSunsetInfoLabel setText: formattedString()];
 		}
 	}
 
@@ -236,9 +240,10 @@ static void loadDeviceScreenDimensions()
 
 	loadDeviceScreenDimensions();
 	if(!sunriseSunsetInfoObject) 
+	{
 		sunriseSunsetInfoObject = [[SunriseSunsetInfo alloc] init];
-
-	[sunriseSunsetInfoObject updateText];
+		[sunriseSunsetInfoObject updateText];
+	}
 }
 
 %end
