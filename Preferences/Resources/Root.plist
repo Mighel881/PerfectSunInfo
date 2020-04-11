@@ -38,7 +38,7 @@
 			<key>label</key>
 			<string>DISPLAY OPTIONS</string>
 			<key>footerText</key>
-			<string>Sunrise / Sunset Time Is Based On Local Time Zone</string>
+			<string>Sunrise / Sunset Time Is Based On Local Time Zone. Info Is Based On The First City Set In The Weather App. Data Is Refreshed Every 3 Hours.</string>
 			<key>footerAlignment</key>
 			<integer>1</integer>
 		</dict>

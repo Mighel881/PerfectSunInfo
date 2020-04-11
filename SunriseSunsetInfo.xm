@@ -2,9 +2,10 @@
 
 #import "SparkColourPickerUtils.h"
 #import <Cephei/HBPreferences.h>
-#import <os/log.h>
 
 #define DegreesToRadians(degrees) (degrees * M_PI / 180)
+
+static float const _3_HOURS = 60 * 60 * 3;
 
 static double screenWidth;
 static double screenHeight;
@@ -42,11 +43,15 @@ static NSMutableString* formattedString()
 		
 		NSMutableString* mutableString = [[NSMutableString alloc] init];
 		if(showSunrise)
-			[mutableString appendString: [NSString stringWithFormat:@"%@%@", sunrisePrefix, [dateFormatter stringFromDate: [forecastModel sunrise]]]];
+		{
+			NSDate *sunrise = [forecastModel sunrise];
+			[mutableString appendString: [NSString stringWithFormat: @"%@%@", sunrisePrefix, sunrise ? [dateFormatter stringFromDate: sunrise] : @"--"]];
+		}
 		if(showSunset)
 		{
+			NSDate *sunset = [forecastModel sunset];
 			if([mutableString length] != 0) [mutableString appendString: separator];
-			[mutableString appendString: [NSString stringWithFormat:@"%@%@", sunsetPrefix, [dateFormatter stringFromDate: [forecastModel sunset]]]];
+			[mutableString appendString: [NSString stringWithFormat: @"%@%@", sunsetPrefix, sunset ? [dateFormatter stringFromDate: sunset] : @"--"]];
 		}
 		return [mutableString copy];
 	}
@@ -88,6 +93,7 @@ static void loadDeviceScreenDimensions()
 				[sunriseSunsetInfoWindow setAlpha: 1];
 				[sunriseSunsetInfoWindow _setSecure: YES];
 				[sunriseSunsetInfoWindow setUserInteractionEnabled: NO];
+				[[sunriseSunsetInfoWindow layer] setAnchorPoint: CGPointZero];
 				
 				sunriseSunsetInfoLabel = [[UILabel alloc] initWithFrame: CGRectMake(0, 0, width, height)];
 				[sunriseSunsetInfoLabel setNumberOfLines: 1];
@@ -95,16 +101,7 @@ static void loadDeviceScreenDimensions()
 
 				[self updateFrame];
 
-				NSDateComponents *comps = [[NSCalendar currentCalendar] 
-					components: (NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay | NSCalendarUnitHour | NSCalendarUnitMinute) 
-					fromDate: [NSDate date]];
-				[comps setDay: [comps day] + 1];
-				[comps setHour: 0];
-				[comps setMinute: 1];
-				NSDate *date = [[NSCalendar currentCalendar] dateFromComponents: comps];
-				NSTimer *timer = [[NSTimer alloc] initWithFireDate: date interval: 86400 target: self selector: @selector(updateText) userInfo: nil repeats: YES];
-				[timer setTolerance: 10];
-				[[NSRunLoop currentRunLoop] addTimer: timer forMode:NSDefaultRunLoopMode];
+				[NSTimer scheduledTimerWithTimeInterval: _3_HOURS target: self selector: @selector(updateText) userInfo: nil repeats: YES];
 
 				CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)&orientationChanged, CFSTR("com.apple.springboard.screenchanged"), NULL, 0);
 				CFNotificationCenterAddObserver(CFNotificationCenterGetLocalCenter(), NULL, (CFNotificationCallback)&orientationChanged, CFSTR("UIWindowDidRotateNotification"), NULL, CFNotificationSuspensionBehaviorCoalesce);
@@ -177,21 +174,21 @@ static void loadDeviceScreenDimensions()
 				case UIDeviceOrientationLandscapeRight:
 				{
 					newLocationX = landscapeY;
-					newLocationY = screenHeight - width - landscapeX;
+					newLocationY = screenHeight - landscapeX;
 					newTransform = CGAffineTransformMakeRotation(-DegreesToRadians(90));
 					break;
 				}
 				case UIDeviceOrientationLandscapeLeft:
 				{
-					newLocationX = screenWidth - height - landscapeY;
+					newLocationX = screenWidth - landscapeY;
 					newLocationY = landscapeX;
 					newTransform = CGAffineTransformMakeRotation(DegreesToRadians(90));
 					break;
 				}
 				case UIDeviceOrientationPortraitUpsideDown:
 				{
-					newLocationX = screenWidth - portraitX - width;
-					newLocationY = screenHeight - height - portraitY;
+					newLocationX = screenWidth - portraitX;
+					newLocationY = screenHeight - portraitY;
 					newTransform = CGAffineTransformMakeRotation(DegreesToRadians(180));
 					break;
 				}
