@@ -50,6 +50,20 @@
 			<key>defaults</key>
 			<string>com.johnzaro.sunrisesunsetinfoprefs</string>
 			<key>key</key>
+			<string>showOnLockScreen</string>
+			<key>label</key>
+			<string>Show On Lock Screen</string>
+			<key>PostNotification</key>
+			<string>com.johnzaro.sunrisesunsetinfoprefs/reloadprefs</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<false/>
+			<key>defaults</key>
+			<string>com.johnzaro.sunrisesunsetinfoprefs</string>
+			<key>key</key>
 			<string>showSunrise</string>
 			<key>label</key>
 			<string>Show Sunrise</string>

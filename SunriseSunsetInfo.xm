@@ -17,6 +17,7 @@ NSDateFormatter *dateFormatter;
 
 static HBPreferences *pref;
 static BOOL enabled;
+static BOOL showOnLockScreen;
 static BOOL showSunrise;
 static NSString *sunrisePrefix;
 static BOOL showSunset;
@@ -88,7 +89,6 @@ static void loadDeviceScreenDimensions()
 			@try
 			{
 				sunriseSunsetInfoWindow = [[UIWindow alloc] initWithFrame: CGRectMake(0, 0, width, height)];
-				[sunriseSunsetInfoWindow setWindowLevel: 1000];
 				[sunriseSunsetInfoWindow setHidden: NO];
 				[sunriseSunsetInfoWindow setAlpha: 1];
 				[sunriseSunsetInfoWindow _setSecure: YES];
@@ -119,6 +119,9 @@ static void loadDeviceScreenDimensions()
 
 	- (void)_updateFrame
 	{
+		if(showOnLockScreen) [sunriseSunsetInfoWindow setWindowLevel: 1050];
+		else [sunriseSunsetInfoWindow setWindowLevel: 1000];
+
 		[self updateSunriseSunsetInfoLabelProperties];
 		[self updateSunriseSunsetInfoSize];
 
@@ -261,6 +264,7 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 {
 	if(!pref) pref = [[HBPreferences alloc] initWithIdentifier: @"com.johnzaro.sunrisesunsetinfoprefs"];
 	enabled = [pref boolForKey: @"enabled"];
+	showOnLockScreen = [pref boolForKey: @"showOnLockScreen"];
 	showSunrise = [pref boolForKey: @"showSunrise"];
 	sunrisePrefix = [pref objectForKey: @"sunrisePrefix"];
 	showSunset = [pref boolForKey: @"showSunset"];
@@ -299,6 +303,7 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 		[pref registerDefaults:
 		@{
 			@"enabled": @NO,
+			@"showOnLockScreen": @NO,
 			@"showSunrise": @NO,
 			@"sunrisePrefix": @"↑",
 			@"showSunset": @NO,
