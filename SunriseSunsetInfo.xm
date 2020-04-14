@@ -23,6 +23,10 @@ static NSString *sunrisePrefix;
 static BOOL showSunset;
 static NSString *sunsetPrefix;
 static NSString *separator;
+static BOOL backgroundColorEnabled;
+static float backgroundCornerRadius;
+static BOOL customBackgroundColorEnabled;
+static UIColor *customBackgroundColor;
 static double portraitX;
 static double portraitY;
 static double landscapeX;
@@ -32,8 +36,8 @@ static double width;
 static double height;
 static long fontSize;
 static BOOL boldFont;
-static BOOL customColorEnabled;
-static UIColor *customColor;
+static BOOL customTextColorEnabled;
+static UIColor *customTextColor;
 static long alignment;
 
 static NSMutableString* formattedString()
@@ -79,6 +83,16 @@ static void loadDeviceScreenDimensions()
 	}
 }
 
+@implementation UILabelWithInsets
+
+- (void)drawTextInRect: (CGRect)rect
+{
+    UIEdgeInsets insets = {0, 5, 0, 5};
+    [super drawTextInRect: UIEdgeInsetsInsetRect(rect, insets)];
+}
+
+@end
+
 @implementation SunriseSunsetInfo
 
 	- (id)init
@@ -95,8 +109,9 @@ static void loadDeviceScreenDimensions()
 				[sunriseSunsetInfoWindow setUserInteractionEnabled: NO];
 				[[sunriseSunsetInfoWindow layer] setAnchorPoint: CGPointZero];
 				
-				sunriseSunsetInfoLabel = [[UILabel alloc] initWithFrame: CGRectMake(0, 0, width, height)];
+				sunriseSunsetInfoLabel = [[UILabelWithInsets alloc] initWithFrame: CGRectMake(0, 0, width, height)];
 				[sunriseSunsetInfoLabel setNumberOfLines: 1];
+				[[sunriseSunsetInfoLabel layer] setMasksToBounds: YES];
 				[(UIView *)sunriseSunsetInfoWindow addSubview: sunriseSunsetInfoLabel];
 
 				[self updateFrame];
@@ -136,8 +151,19 @@ static void loadDeviceScreenDimensions()
 
 		[sunriseSunsetInfoLabel setTextAlignment: alignment];
 
-		if(customColorEnabled)
-			[sunriseSunsetInfoObject updateTextColor: customColor];
+		if(customTextColorEnabled)
+			[sunriseSunsetInfoLabel setTextColor: customTextColor];
+
+		if(!backgroundColorEnabled)
+			[sunriseSunsetInfoLabel setBackgroundColor: [UIColor clearColor]];
+		else
+		{
+			[[sunriseSunsetInfoLabel layer] setCornerRadius: backgroundCornerRadius];
+			[[sunriseSunsetInfoLabel layer] setContinuousCorners: YES];
+			
+			if(customBackgroundColorEnabled)
+				[sunriseSunsetInfoLabel setBackgroundColor: customBackgroundColor];
+		}
 	}
 
 	- (void)updateSunriseSunsetInfoSize
@@ -169,37 +195,36 @@ static void loadDeviceScreenDimensions()
 				return;
 			
 			CGAffineTransform newTransform;
-			int newLocationX;
-			int newLocationY;
+			CGRect frame = [sunriseSunsetInfoWindow frame];
 
 			switch (orientation)
 			{
 				case UIDeviceOrientationLandscapeRight:
 				{
-					newLocationX = landscapeY;
-					newLocationY = screenHeight - landscapeX;
+					frame.origin.x = landscapeY;
+					frame.origin.y = screenHeight - landscapeX;
 					newTransform = CGAffineTransformMakeRotation(-DegreesToRadians(90));
 					break;
 				}
 				case UIDeviceOrientationLandscapeLeft:
 				{
-					newLocationX = screenWidth - landscapeY;
-					newLocationY = landscapeX;
+					frame.origin.x = screenWidth - landscapeY;
+					frame.origin.y = landscapeX;
 					newTransform = CGAffineTransformMakeRotation(DegreesToRadians(90));
 					break;
 				}
 				case UIDeviceOrientationPortraitUpsideDown:
 				{
-					newLocationX = screenWidth - portraitX;
-					newLocationY = screenHeight - portraitY;
+					frame.origin.x = screenWidth - portraitX;
+					frame.origin.y = screenHeight - portraitY;
 					newTransform = CGAffineTransformMakeRotation(DegreesToRadians(180));
 					break;
 				}
 				case UIDeviceOrientationPortrait:
 				default:
 				{
-					newLocationX = portraitX;
-					newLocationY = portraitY;
+					frame.origin.x = portraitX;
+					frame.origin.y = portraitY;
 					newTransform = CGAffineTransformMakeRotation(DegreesToRadians(0));
 					break;
 				}
@@ -208,9 +233,6 @@ static void loadDeviceScreenDimensions()
 			[UIView animateWithDuration: 0.3f animations:
 			^{
 				[sunriseSunsetInfoWindow setTransform: newTransform];
-				CGRect frame = [sunriseSunsetInfoWindow frame];
-				frame.origin.x = newLocationX;
-				frame.origin.y = newLocationY;
 				[sunriseSunsetInfoWindow setFrame: frame];
 				orientationOld = orientation;
 			} completion: nil];
@@ -227,7 +249,18 @@ static void loadDeviceScreenDimensions()
 
 	- (void)updateTextColor: (UIColor*)color
 	{
-		[sunriseSunsetInfoLabel setTextColor: color];
+		CGFloat r;
+    	[color getRed: &r green: nil blue: nil alpha: nil];
+		if(r == 0 || r == 1)
+		{
+			if(!customTextColorEnabled) [sunriseSunsetInfoLabel setTextColor: color];
+			if(backgroundColorEnabled && !customBackgroundColorEnabled) 
+			{
+				if(r == 0) [sunriseSunsetInfoLabel setBackgroundColor: [[UIColor whiteColor] colorWithAlphaComponent: 0.5]];
+				else [sunriseSunsetInfoLabel setBackgroundColor: [[UIColor blackColor] colorWithAlphaComponent: 0.5]];
+			}	
+
+		}
 	}
 
 @end
@@ -254,7 +287,7 @@ static void loadDeviceScreenDimensions()
 {
 	%orig;
 	
-	if(!customColorEnabled && sunriseSunsetInfoObject && [self styleAttributes] && [[self styleAttributes] imageTintColor]) 
+	if(sunriseSunsetInfoObject && [self styleAttributes] && [[self styleAttributes] imageTintColor]) 
 		[sunriseSunsetInfoObject updateTextColor: [[self styleAttributes] imageTintColor]];
 }
 
@@ -270,6 +303,9 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 	showSunset = [pref boolForKey: @"showSunset"];
 	sunsetPrefix = [pref objectForKey: @"sunsetPrefix"];
 	separator = [pref objectForKey: @"separator"];
+	backgroundColorEnabled = [pref boolForKey: @"backgroundColorEnabled"];
+	backgroundCornerRadius = [pref floatForKey: @"backgroundCornerRadius"];
+	customBackgroundColorEnabled = [pref boolForKey: @"customBackgroundColorEnabled"];
 	portraitX = [pref floatForKey: @"portraitX"];
 	portraitY = [pref floatForKey: @"portraitY"];
 	landscapeX = [pref floatForKey: @"landscapeX"];
@@ -279,13 +315,14 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 	height = [pref floatForKey: @"height"];
 	fontSize = [pref integerForKey: @"fontSize"];
 	boldFont = [pref boolForKey: @"boldFont"];
-	customColorEnabled = [pref boolForKey: @"customColorEnabled"];
+	customTextColorEnabled = [pref boolForKey: @"customTextColorEnabled"];
 	alignment = [pref integerForKey: @"alignment"];
 
-	if(customColorEnabled)
+	if(backgroundColorEnabled && customBackgroundColorEnabled || customTextColorEnabled)
 	{
 		NSDictionary *preferencesDictionary = [NSDictionary dictionaryWithContentsOfFile: @"/var/mobile/Library/Preferences/com.johnzaro.sunrisesunsetinfoprefs.colors.plist"];
-		customColor = [SparkColourPickerUtils colourWithString: [preferencesDictionary objectForKey: @"customColor"] withFallback: @"#FF9400"];
+		customBackgroundColor = [SparkColourPickerUtils colourWithString: [preferencesDictionary objectForKey: @"customBackgroundColor"] withFallback: @"#000000:0.50"];
+		customTextColor = [SparkColourPickerUtils colourWithString: [preferencesDictionary objectForKey: @"customTextColor"] withFallback: @"#FF9400"];
 	}
 
 	if(sunriseSunsetInfoObject)
@@ -309,6 +346,9 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 			@"showSunset": @NO,
 			@"sunsetPrefix": @"↓",
 			@"separator": @" ",
+			@"backgroundColorEnabled": @NO,
+			@"backgroundCornerRadius": @6,
+			@"customBackgroundColorEnabled": @NO,
 			@"portraitX": @5,
 			@"portraitY": @32,
 			@"landscapeX": @5,
@@ -318,7 +358,7 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 			@"height": @12,
 			@"fontSize": @8,
 			@"boldFont": @NO,
-			@"customColorEnabled": @NO,
+			@"customTextColorEnabled": @NO,
 			@"alignment": @1,
     	}];
 

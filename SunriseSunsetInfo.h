@@ -3,10 +3,13 @@
 - (BOOL)isPresented;
 @end
 
+@interface UILabelWithInsets : UILabel
+@end
+
 @interface SunriseSunsetInfo: NSObject
 {
     UIWindow *sunriseSunsetInfoWindow;
-    UILabel *sunriseSunsetInfoLabel;
+    UILabelWithInsets *sunriseSunsetInfoLabel;
 }
 - (id)init;
 - (void)updateOrientation;
@@ -43,4 +46,8 @@
 @interface WATodayModel: NSObject
 + (id)autoupdatingLocationModelWithPreferences:(id)arg1 effectiveBundleIdentifier:(id)arg2;
 - (WAForecastModel *)forecastModel;
+@end
+
+@interface CALayer ()
+- (void)setContinuousCorners:(BOOL)arg1;
 @end
