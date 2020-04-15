@@ -23,6 +23,7 @@ static NSString *sunrisePrefix;
 static BOOL showSunset;
 static NSString *sunsetPrefix;
 static NSString *separator;
+static BOOL showSecondTimeInNewLine;
 static BOOL backgroundColorEnabled;
 static float backgroundCornerRadius;
 static BOOL customBackgroundColorEnabled;
@@ -55,7 +56,11 @@ static NSMutableString* formattedString()
 		if(showSunset)
 		{
 			NSDate *sunset = [forecastModel sunset];
-			if([mutableString length] != 0) [mutableString appendString: separator];
+			if([mutableString length] > 0)
+			{
+				if(showSecondTimeInNewLine) [mutableString appendString: @"\n"];
+				else [mutableString appendString: separator];
+			}
 			[mutableString appendString: [NSString stringWithFormat: @"%@%@", sunsetPrefix, sunset ? [dateFormatter stringFromDate: sunset] : @"--"]];
 		}
 		return [mutableString copy];
@@ -110,7 +115,6 @@ static void loadDeviceScreenDimensions()
 				[[sunriseSunsetInfoWindow layer] setAnchorPoint: CGPointZero];
 				
 				sunriseSunsetInfoLabel = [[UILabelWithInsets alloc] initWithFrame: CGRectMake(0, 0, width, height)];
-				[sunriseSunsetInfoLabel setNumberOfLines: 1];
 				[[sunriseSunsetInfoLabel layer] setMasksToBounds: YES];
 				[(UIView *)sunriseSunsetInfoWindow addSubview: sunriseSunsetInfoLabel];
 
@@ -148,6 +152,8 @@ static void loadDeviceScreenDimensions()
 	{
 		if(boldFont) [sunriseSunsetInfoLabel setFont: [UIFont boldSystemFontOfSize: fontSize]];
 		else [sunriseSunsetInfoLabel setFont: [UIFont systemFontOfSize: fontSize]];
+
+		[sunriseSunsetInfoLabel setNumberOfLines: showSecondTimeInNewLine ? 2 : 1];
 
 		[sunriseSunsetInfoLabel setTextAlignment: alignment];
 
@@ -302,6 +308,7 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 	sunrisePrefix = [pref objectForKey: @"sunrisePrefix"];
 	showSunset = [pref boolForKey: @"showSunset"];
 	sunsetPrefix = [pref objectForKey: @"sunsetPrefix"];
+	showSecondTimeInNewLine = [pref boolForKey: @"showSecondTimeInNewLine"];
 	separator = [pref objectForKey: @"separator"];
 	backgroundColorEnabled = [pref boolForKey: @"backgroundColorEnabled"];
 	backgroundCornerRadius = [pref floatForKey: @"backgroundCornerRadius"];
@@ -345,6 +352,7 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 			@"sunrisePrefix": @"↑",
 			@"showSunset": @NO,
 			@"sunsetPrefix": @"↓",
+			@"showSecondTimeInNewLine": @NO,
 			@"separator": @" ",
 			@"backgroundColorEnabled": @NO,
 			@"backgroundCornerRadius": @6,
