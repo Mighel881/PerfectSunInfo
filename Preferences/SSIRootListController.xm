@@ -87,6 +87,7 @@
 
             NSFileManager *manager = [NSFileManager defaultManager];
             [manager removeItemAtPath:@"/var/mobile/Library/Preferences/com.johnzaro.sunrisesunsetinfoprefs.plist" error: nil];
+            [manager removeItemAtPath:@"/var/mobile/Library/Preferences/com.johnzaro.sunrisesunsetinfoprefs.colors.plist" error: nil];
 
             [self respring];
         }];
