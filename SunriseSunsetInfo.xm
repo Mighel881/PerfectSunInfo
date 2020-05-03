@@ -1,7 +1,8 @@
 #import "SunriseSunsetInfo.h"
-
+#import "SparkAppList.h"
 #import "SparkColourPickerUtils.h"
 #import <Cephei/HBPreferences.h>
+#import <PeterDev/libpddokdo.h>
 
 #define DegreesToRadians(degrees) (degrees * M_PI / 180)
 
@@ -40,22 +41,27 @@ static BOOL boldFont;
 static BOOL customTextColorEnabled;
 static UIColor *customTextColor;
 static long alignment;
+static BOOL enableBlackListedApps;
+static NSArray *blackListedApps;
+
+static BOOL isBlacklistedAppInFront = NO;
 
 static NSMutableString* formattedString()
 {
 	@autoreleasepool
 	{
-		WAForecastModel *forecastModel = [[%c(WATodayModel) autoupdatingLocationModelWithPreferences: [%c(WeatherPreferences) sharedPreferences] effectiveBundleIdentifier: @"com.apple.weather"] forecastModel];
-		
+		PDDokdo *pDDokdo = [PDDokdo sharedInstance];
+		[pDDokdo refreshWeatherData];
+
 		NSMutableString* mutableString = [[NSMutableString alloc] init];
 		if(showSunrise)
 		{
-			NSDate *sunrise = [forecastModel sunrise];
+			NSDate *sunrise = [pDDokdo sunrise];
 			[mutableString appendString: [NSString stringWithFormat: @"%@%@", sunrisePrefix, sunrise ? [dateFormatter stringFromDate: sunrise] : @"--"]];
 		}
 		if(showSunset)
 		{
-			NSDate *sunset = [forecastModel sunset];
+			NSDate *sunset = [pDDokdo sunset];
 			if([mutableString length] > 0)
 			{
 				if(showSecondTimeInNewLine) [mutableString appendString: @"\n"];
@@ -138,7 +144,7 @@ static void loadDeviceScreenDimensions()
 
 	- (void)_updateFrame
 	{
-		if(showOnLockScreen) [sunriseSunsetInfoWindow setWindowLevel: 1050];
+		if(showOnLockScreen) [sunriseSunsetInfoWindow setWindowLevel: 1051];
 		else [sunriseSunsetInfoWindow setWindowLevel: 1000];
 
 		[self updateSunriseSunsetInfoLabelProperties];
@@ -269,6 +275,11 @@ static void loadDeviceScreenDimensions()
 		}
 	}
 
+	- (void)setHidden: (BOOL)arg
+	{
+		[sunriseSunsetInfoWindow setHidden: arg];
+	}
+
 @end
 
 %hook SpringBoard
@@ -283,6 +294,32 @@ static void loadDeviceScreenDimensions()
 		sunriseSunsetInfoObject = [[SunriseSunsetInfo alloc] init];
 		[sunriseSunsetInfoObject updateText];
 	}
+}
+
+-(void)frontDisplayDidChange: (id)arg1 
+{
+	%orig;
+
+	NSString *currentApp = [(SBApplication*)[self _accessibilityFrontMostApplication] bundleIdentifier];
+	isBlacklistedAppInFront = blackListedApps && currentApp && [blackListedApps containsObject: currentApp];
+
+	[sunriseSunsetInfoObject setHidden: isBlacklistedAppInFront];
+}
+
+%end
+
+%hook SBCoverSheetPresentationManager
+
+-(BOOL)isPresented
+{
+	BOOL isPresented = %orig;
+
+	if(isPresented || !isBlacklistedAppInFront)
+		[sunriseSunsetInfoObject setHidden: NO];
+	else
+		[sunriseSunsetInfoObject setHidden: YES];
+
+	return isPresented;
 }
 
 %end
@@ -324,6 +361,7 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 	boldFont = [pref boolForKey: @"boldFont"];
 	customTextColorEnabled = [pref boolForKey: @"customTextColorEnabled"];
 	alignment = [pref integerForKey: @"alignment"];
+	enableBlackListedApps = [pref boolForKey: @"enableBlackListedApps"];
 
 	if(backgroundColorEnabled && customBackgroundColorEnabled || customTextColorEnabled)
 	{
@@ -331,6 +369,11 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 		customBackgroundColor = [SparkColourPickerUtils colourWithString: [preferencesDictionary objectForKey: @"customBackgroundColor"] withFallback: @"#000000:0.50"];
 		customTextColor = [SparkColourPickerUtils colourWithString: [preferencesDictionary objectForKey: @"customTextColor"] withFallback: @"#FF9400"];
 	}
+
+	if(enableBlackListedApps)
+		blackListedApps = [SparkAppList getAppListForIdentifier: @"com.johnzaro.sunrisesunsetinfoprefs.blackListedApps" andKey: @"blackListedApps"];
+	else
+		blackListedApps = nil;
 
 	if(sunriseSunsetInfoObject)
 	{
@@ -368,6 +411,7 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 			@"boldFont": @NO,
 			@"customTextColorEnabled": @NO,
 			@"alignment": @1,
+			@"enableBlackListedApps": @NO
     	}];
 
 		settingsChanged(NULL, NULL, NULL, NULL, NULL);

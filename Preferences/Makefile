@@ -8,7 +8,7 @@ SunriseSunsetInfoPrefs_FILES = SSIAppearanceSettings.m SSIRootHeaderView.mm SSIR
 SunriseSunsetInfoPrefs_INSTALL_PATH = /Library/PreferenceBundles
 SunriseSunsetInfoPrefs_FRAMEWORKS = UIKit
 SunriseSunsetInfoPrefs_PRIVATE_FRAMEWORKS = Preferences
-SunriseSunsetInfoPrefs_LIBRARIES = sparkcolourpicker
+SunriseSunsetInfoPrefs_LIBRARIES = sparkcolourpicker sparkapplist
 SunriseSunsetInfoPrefs_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
 SunriseSunsetInfoPrefs_EXTRA_FRAMEWORKS = Cephei CepheiPrefs
 

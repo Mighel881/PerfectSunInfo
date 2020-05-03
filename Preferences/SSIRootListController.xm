@@ -1,5 +1,6 @@
 #import "SSIRootListController.h"
 #import "SparkColourPickerView.h"
+#import "SparkAppListTableViewController.h"
 #import "spawn.h"
 
 @implementation SSIRootListController
@@ -74,6 +75,14 @@
 	return _specifiers;
 }
 
+- (void)selectBlackListedApps
+{
+    SparkAppListTableViewController *s = [[SparkAppListTableViewController alloc] initWithIdentifier: @"com.johnzaro.sunrisesunsetinfoprefs.blackListedApps" andKey: @"blackListedApps"];
+
+    [self.navigationController pushViewController: s animated: YES];
+    self.navigationItem.hidesBackButton = FALSE;
+}
+
 - (void)reset: (PSSpecifier*)specifier
 {
     UIAlertController *reset = [UIAlertController
@@ -88,6 +97,7 @@
             NSFileManager *manager = [NSFileManager defaultManager];
             [manager removeItemAtPath:@"/var/mobile/Library/Preferences/com.johnzaro.sunrisesunsetinfoprefs.plist" error: nil];
             [manager removeItemAtPath:@"/var/mobile/Library/Preferences/com.johnzaro.sunrisesunsetinfoprefs.colors.plist" error: nil];
+            [manager removeItemAtPath:@"/var/mobile/Library/Preferences/com.johnzaro.sunrisesunsetinfoprefs.blackListedApps.plist" error: nil];
 
             [self respring];
         }];
