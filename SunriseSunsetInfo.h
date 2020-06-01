@@ -3,20 +3,30 @@
 - (BOOL)isPresented;
 @end
 
-@interface UILabelWithInsets : UILabel
+@interface SBControlCenterController: NSObject
++ (id)sharedInstance;
+- (BOOL)isVisible;
 @end
 
 @interface SunriseSunsetInfo: NSObject
 {
     UIWindow *sunriseSunsetInfoWindow;
-    UILabelWithInsets *sunriseSunsetInfoLabel;
+    UILabel *sunriseSunsetInfoLabel;
+    UIColor *backupForegroundColor;
+    UIColor *backupBackgroundColor;
 }
 - (id)init;
 - (void)updateOrientation;
 - (void)updateFrame;
-- (void)updateSunriseSunsetInfoSize;
+- (void)updateSunriseSunsetLabelSize;
 - (void)updateTextColor:(UIColor *)color;
-- (void)setHidden:(BOOL)arg;
+- (void)openDoubleTapApp;
+- (void)openHoldApp;
+- (void)hideIfNeeded;
+@end
+
+@interface UIScreen ()
+- (CGRect)_referenceBounds;
 @end
 
 @interface UIWindow ()
@@ -37,14 +47,10 @@
 - (BOOL)launchApplicationWithIdentifier:(id)arg1 suspended:(BOOL)arg2;
 @end
 
-@interface _UIStatusBarStyleAttributes : NSObject
+@interface _UIStatusBarStyleAttributes: NSObject
 @property(nonatomic, copy) UIColor *imageTintColor;
 @end
 
-@interface _UIStatusBar : UIView
+@interface _UIStatusBar: UIView
 @property(nonatomic, retain) _UIStatusBarStyleAttributes *styleAttributes;
-@end
-
-@interface CALayer ()
-- (void)setContinuousCorners:(BOOL)arg1;
 @end

@@ -83,6 +83,24 @@
     self.navigationItem.hidesBackButton = FALSE;
 }
 
+- (void)selectDoubleTapApp
+{
+    SparkAppListTableViewController *s = [[SparkAppListTableViewController alloc] initWithIdentifier: @"com.johnzaro.sunrisesunsetinfoprefs.gestureApps" andKey: @"doubleTapApp"];
+    [s setMaxEnabled: 1];
+
+    [self.navigationController pushViewController: s animated: YES];
+    self.navigationItem.hidesBackButton = FALSE;
+}
+
+- (void)selectHoldApp
+{
+    SparkAppListTableViewController *s = [[SparkAppListTableViewController alloc] initWithIdentifier: @"com.johnzaro.sunrisesunsetinfoprefs.gestureApps" andKey: @"holdApp"];
+    [s setMaxEnabled: 1];
+    
+    [self.navigationController pushViewController: s animated: YES];
+    self.navigationItem.hidesBackButton = FALSE;
+}
+
 - (void)reset: (PSSpecifier*)specifier
 {
     UIAlertController *reset = [UIAlertController
@@ -97,6 +115,7 @@
             NSFileManager *manager = [NSFileManager defaultManager];
             [manager removeItemAtPath:@"/var/mobile/Library/Preferences/com.johnzaro.sunrisesunsetinfoprefs.plist" error: nil];
             [manager removeItemAtPath:@"/var/mobile/Library/Preferences/com.johnzaro.sunrisesunsetinfoprefs.colors.plist" error: nil];
+            [manager removeItemAtPath: @"/var/mobile/Library/Preferences/com.johnzaro.sunrisesunsetinfoprefs.gestureApps.plist" error: nil];
             [manager removeItemAtPath:@"/var/mobile/Library/Preferences/com.johnzaro.sunrisesunsetinfoprefs.blackListedApps.plist" error: nil];
 
             [self respring];

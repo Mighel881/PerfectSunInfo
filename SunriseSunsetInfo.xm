@@ -8,10 +8,6 @@
 
 static float const _3_HOURS = 60 * 60 * 3;
 
-static double screenWidth;
-static double screenHeight;
-static UIDeviceOrientation orientationOld;
-
 __strong static id sunriseSunsetInfoObject;
 
 NSDateFormatter *dateFormatter;
@@ -19,6 +15,9 @@ NSDateFormatter *dateFormatter;
 static HBPreferences *pref;
 static BOOL enabled;
 static BOOL showOnLockScreen;
+static BOOL showOnControlCenter;
+static BOOL hideOnFullScreen;
+static BOOL hideOnLandscape;
 static BOOL showSunrise;
 static NSString *sunrisePrefix;
 static BOOL showSunset;
@@ -26,7 +25,8 @@ static NSString *sunsetPrefix;
 static NSString *separator;
 static BOOL showSecondTimeInNewLine;
 static BOOL backgroundColorEnabled;
-static float backgroundCornerRadius;
+static NSInteger margin;
+static CGFloat backgroundCornerRadius;
 static BOOL customBackgroundColorEnabled;
 static UIColor *customBackgroundColor;
 static double portraitX;
@@ -34,6 +34,7 @@ static double portraitY;
 static double landscapeX;
 static double landscapeY;
 static BOOL followDeviceOrientation;
+static BOOL animateMovement;
 static double width;
 static double height;
 static long fontSize;
@@ -41,10 +42,23 @@ static BOOL boldFont;
 static BOOL customTextColorEnabled;
 static UIColor *customTextColor;
 static long alignment;
+static BOOL enableDoubleTap;
+static NSString *doubleTapIdentifier;
+static BOOL enableHold;
+static NSString *holdIdentifier;
 static BOOL enableBlackListedApps;
 static NSArray *blackListedApps;
 
+static double screenWidth;
+static double screenHeight;
+static BOOL shouldHideBasedOnOrientation = NO;
 static BOOL isBlacklistedAppInFront = NO;
+static BOOL isLockScreenPresented;
+static BOOL isControlCenterVisible;
+static BOOL isOnLandscape;
+static UIDeviceOrientation deviceOrientation;
+static UIDeviceOrientation orientationOld;
+static BOOL isStatusBarHidden;
 
 static NSMutableString* formattedString()
 {
@@ -75,34 +89,21 @@ static NSMutableString* formattedString()
 
 static void orientationChanged()
 {
-	if(followDeviceOrientation && sunriseSunsetInfoObject) 
+	deviceOrientation = [[UIApplication sharedApplication] _frontMostAppOrientation];
+	if(deviceOrientation == UIDeviceOrientationLandscapeRight || deviceOrientation == UIDeviceOrientationLandscapeLeft)
+		isOnLandscape = YES;
+	else
+		isOnLandscape = NO;
+
+	if((hideOnLandscape || followDeviceOrientation) && sunriseSunsetInfoObject) 
 		[sunriseSunsetInfoObject updateOrientation];
 }
 
 static void loadDeviceScreenDimensions()
 {
-	UIDeviceOrientation orientation = [[UIApplication sharedApplication] _frontMostAppOrientation];
-	if(orientation == UIDeviceOrientationLandscapeLeft || orientation == UIDeviceOrientationLandscapeRight)
-	{
-		screenWidth = [[UIScreen mainScreen] bounds].size.height;
-		screenHeight = [[UIScreen mainScreen] bounds].size.width;
-	}
-	else
-	{
-		screenWidth = [[UIScreen mainScreen] bounds].size.width;
-		screenHeight = [[UIScreen mainScreen] bounds].size.height;
-	}
+	screenWidth = [[UIScreen mainScreen] _referenceBounds].size.width;
+	screenHeight = [[UIScreen mainScreen] _referenceBounds].size.height;
 }
-
-@implementation UILabelWithInsets
-
-- (void)drawTextInRect: (CGRect)rect
-{
-    UIEdgeInsets insets = {0, 5, 0, 5};
-    [super drawTextInRect: UIEdgeInsetsInsetRect(rect, insets)];
-}
-
-@end
 
 @implementation SunriseSunsetInfo
 
@@ -111,27 +112,32 @@ static void loadDeviceScreenDimensions()
 		self = [super init];
 		if(self)
 		{
-			@try
-			{
-				sunriseSunsetInfoWindow = [[UIWindow alloc] initWithFrame: CGRectMake(0, 0, width, height)];
-				[sunriseSunsetInfoWindow setHidden: NO];
-				[sunriseSunsetInfoWindow setAlpha: 1];
-				[sunriseSunsetInfoWindow _setSecure: YES];
-				[sunriseSunsetInfoWindow setUserInteractionEnabled: NO];
-				[[sunriseSunsetInfoWindow layer] setAnchorPoint: CGPointZero];
-				
-				sunriseSunsetInfoLabel = [[UILabelWithInsets alloc] initWithFrame: CGRectMake(0, 0, width, height)];
-				[[sunriseSunsetInfoLabel layer] setMasksToBounds: YES];
-				[(UIView *)sunriseSunsetInfoWindow addSubview: sunriseSunsetInfoLabel];
+			sunriseSunsetInfoLabel = [[UILabel alloc] initWithFrame: CGRectMake(0, 0, 0, 0)];
+			[sunriseSunsetInfoLabel setAdjustsFontSizeToFitWidth: YES];
 
-				[self updateFrame];
+			UITapGestureRecognizer *tapGestureRecognizer = [[UITapGestureRecognizer alloc] initWithTarget: self action: @selector(openDoubleTapApp)];
+			[tapGestureRecognizer setNumberOfTapsRequired: 2];
 
-				[NSTimer scheduledTimerWithTimeInterval: _3_HOURS target: self selector: @selector(updateText) userInfo: nil repeats: YES];
+			UILongPressGestureRecognizer *holdGestureRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget: self action: @selector(openHoldApp)];
 
-				CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)&orientationChanged, CFSTR("com.apple.springboard.screenchanged"), NULL, 0);
-				CFNotificationCenterAddObserver(CFNotificationCenterGetLocalCenter(), NULL, (CFNotificationCallback)&orientationChanged, CFSTR("UIWindowDidRotateNotification"), NULL, CFNotificationSuspensionBehaviorCoalesce);
-			}
-			@catch (NSException *e) {}
+			sunriseSunsetInfoWindow = [[UIWindow alloc] initWithFrame: CGRectMake(0, 0, 0, 0)];
+			[sunriseSunsetInfoWindow setWindowLevel: 100000];
+			[sunriseSunsetInfoWindow _setSecure: YES];
+			[[sunriseSunsetInfoWindow layer] setAnchorPoint: CGPointZero];
+			[sunriseSunsetInfoWindow addSubview: sunriseSunsetInfoLabel];
+			[sunriseSunsetInfoWindow addGestureRecognizer: tapGestureRecognizer];
+			[sunriseSunsetInfoWindow addGestureRecognizer: holdGestureRecognizer];
+
+			deviceOrientation = [[UIApplication sharedApplication] _frontMostAppOrientation];
+
+			backupForegroundColor = [UIColor whiteColor];
+			backupBackgroundColor = [[UIColor blackColor] colorWithAlphaComponent: 0.5];
+			[self updateFrame];
+
+			[NSTimer scheduledTimerWithTimeInterval: _3_HOURS target: self selector: @selector(updateText) userInfo: nil repeats: YES];
+
+			CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)&orientationChanged, CFSTR("com.apple.springboard.screenchanged"), NULL, 0);
+			CFNotificationCenterAddObserver(CFNotificationCenterGetLocalCenter(), NULL, (CFNotificationCallback)&orientationChanged, CFSTR("UIWindowDidRotateNotification"), NULL, CFNotificationSuspensionBehaviorCoalesce);
 		}
 		return self;
 	}
@@ -144,140 +150,151 @@ static void loadDeviceScreenDimensions()
 
 	- (void)_updateFrame
 	{
-		if(showOnLockScreen) [sunriseSunsetInfoWindow setWindowLevel: 1051];
-		else [sunriseSunsetInfoWindow setWindowLevel: 1000];
-
-		[self updateSunriseSunsetInfoLabelProperties];
-		[self updateSunriseSunsetInfoSize];
-
 		orientationOld = nil;
+
+		if(!backgroundColorEnabled)
+			[sunriseSunsetInfoWindow setBackgroundColor: [UIColor clearColor]];
+		else
+		{
+			if(customBackgroundColorEnabled)
+				[sunriseSunsetInfoWindow setBackgroundColor: customBackgroundColor];
+			else
+				[sunriseSunsetInfoWindow setBackgroundColor: backupBackgroundColor];
+
+			[[sunriseSunsetInfoWindow layer] setCornerRadius: backgroundCornerRadius];
+		}
+
+		[self updateSunriseSunsetLabelProperties];
+		[self updateSunriseSunsetLabelSize];
 		[self updateOrientation];
 	}
 
-	- (void)updateSunriseSunsetInfoLabelProperties
+	- (void)updateSunriseSunsetLabelProperties
 	{
 		if(boldFont) [sunriseSunsetInfoLabel setFont: [UIFont boldSystemFontOfSize: fontSize]];
 		else [sunriseSunsetInfoLabel setFont: [UIFont systemFontOfSize: fontSize]];
 
 		[sunriseSunsetInfoLabel setNumberOfLines: showSecondTimeInNewLine ? 2 : 1];
-
 		[sunriseSunsetInfoLabel setTextAlignment: alignment];
 
 		if(customTextColorEnabled)
 			[sunriseSunsetInfoLabel setTextColor: customTextColor];
-
-		if(!backgroundColorEnabled)
-			[sunriseSunsetInfoLabel setBackgroundColor: [UIColor clearColor]];
 		else
-		{
-			[[sunriseSunsetInfoLabel layer] setCornerRadius: backgroundCornerRadius];
-			[[sunriseSunsetInfoLabel layer] setContinuousCorners: YES];
-			
-			if(customBackgroundColorEnabled)
-				[sunriseSunsetInfoLabel setBackgroundColor: customBackgroundColor];
-		}
+			[sunriseSunsetInfoLabel setTextColor: backupForegroundColor];
 	}
 
-	- (void)updateSunriseSunsetInfoSize
+	- (void)updateSunriseSunsetLabelSize
 	{
 		CGRect frame = [sunriseSunsetInfoLabel frame];
-		frame.size.width = width;
-		frame.size.height = height;
+		frame.origin.x = margin;
+		frame.origin.y = margin;
+		frame.size.width = width - 2 * margin;
+		frame.size.height = height - 2 * margin;
 		[sunriseSunsetInfoLabel setFrame: frame];
-
-		frame = [sunriseSunsetInfoWindow frame];
-		frame.size.width = width;
-		frame.size.height = height;
-		[sunriseSunsetInfoWindow setFrame: frame];
 	}
 
 	- (void)updateOrientation
 	{
-		if(!followDeviceOrientation)
+		shouldHideBasedOnOrientation = hideOnLandscape && isOnLandscape;
+		[self hideIfNeeded];
+
+		if(deviceOrientation == orientationOld)
+			return;
+
+		CGAffineTransform newTransform;
+		CGRect frame = [sunriseSunsetInfoWindow frame];
+
+		if(!followDeviceOrientation || deviceOrientation == UIDeviceOrientationPortrait)
 		{
-			CGRect frame = [sunriseSunsetInfoWindow frame];
 			frame.origin.x = portraitX;
 			frame.origin.y = portraitY;
-			[sunriseSunsetInfoWindow setFrame: frame];
+			newTransform = CGAffineTransformMakeRotation(DegreesToRadians(0));
 		}
-		else
+		else if(deviceOrientation == UIDeviceOrientationLandscapeLeft)
 		{
-			UIDeviceOrientation orientation = [[UIApplication sharedApplication] _frontMostAppOrientation];
-			if(orientation == orientationOld)
-				return;
-			
-			CGAffineTransform newTransform;
-			CGRect frame = [sunriseSunsetInfoWindow frame];
+			frame.origin.x = screenWidth - landscapeY;
+			frame.origin.y = landscapeX;
+			newTransform = CGAffineTransformMakeRotation(DegreesToRadians(90));
+		}
+		else if(deviceOrientation == UIDeviceOrientationPortraitUpsideDown)
+		{
+			frame.origin.x = screenWidth - portraitX;
+			frame.origin.y = screenHeight - portraitY;
+			newTransform = CGAffineTransformMakeRotation(DegreesToRadians(180));
+		}
+		else if(deviceOrientation == UIDeviceOrientationLandscapeRight)
+		{
+			frame.origin.x = landscapeY;
+			frame.origin.y = screenHeight - landscapeX;
+			newTransform = CGAffineTransformMakeRotation(-DegreesToRadians(90));
+		}
 
-			switch (orientation)
-			{
-				case UIDeviceOrientationLandscapeRight:
-				{
-					frame.origin.x = landscapeY;
-					frame.origin.y = screenHeight - landscapeX;
-					newTransform = CGAffineTransformMakeRotation(-DegreesToRadians(90));
-					break;
-				}
-				case UIDeviceOrientationLandscapeLeft:
-				{
-					frame.origin.x = screenWidth - landscapeY;
-					frame.origin.y = landscapeX;
-					newTransform = CGAffineTransformMakeRotation(DegreesToRadians(90));
-					break;
-				}
-				case UIDeviceOrientationPortraitUpsideDown:
-				{
-					frame.origin.x = screenWidth - portraitX;
-					frame.origin.y = screenHeight - portraitY;
-					newTransform = CGAffineTransformMakeRotation(DegreesToRadians(180));
-					break;
-				}
-				case UIDeviceOrientationPortrait:
-				default:
-				{
-					frame.origin.x = portraitX;
-					frame.origin.y = portraitY;
-					newTransform = CGAffineTransformMakeRotation(DegreesToRadians(0));
-					break;
-				}
-			}
+		frame.size.width = isOnLandscape && followDeviceOrientation ? height : width;
+		frame.size.height = isOnLandscape && followDeviceOrientation ? width : height;
 
+		if(animateMovement)
+		{
 			[UIView animateWithDuration: 0.3f animations:
 			^{
 				[sunriseSunsetInfoWindow setTransform: newTransform];
 				[sunriseSunsetInfoWindow setFrame: frame];
-				orientationOld = orientation;
+				orientationOld = deviceOrientation;
 			} completion: nil];
+		}
+		else
+		{
+			[sunriseSunsetInfoWindow setTransform: newTransform];
+			[sunriseSunsetInfoWindow setFrame: frame];
+			orientationOld = deviceOrientation;
 		}
 	}
 
 	- (void)updateText
 	{
 		if(sunriseSunsetInfoWindow && sunriseSunsetInfoLabel)
-		{
 			[sunriseSunsetInfoLabel setText: formattedString()];
-		}
 	}
 
 	- (void)updateTextColor: (UIColor*)color
 	{
+		backupForegroundColor = color;
 		CGFloat r;
     	[color getRed: &r green: nil blue: nil alpha: nil];
 		if(r == 0 || r == 1)
 		{
-			if(!customTextColorEnabled) [sunriseSunsetInfoLabel setTextColor: color];
+			if(!customTextColorEnabled)
+				[sunriseSunsetInfoLabel setTextColor: color];
+
 			if(backgroundColorEnabled && !customBackgroundColorEnabled) 
 			{
-				if(r == 0) [sunriseSunsetInfoLabel setBackgroundColor: [[UIColor whiteColor] colorWithAlphaComponent: 0.5]];
-				else [sunriseSunsetInfoLabel setBackgroundColor: [[UIColor blackColor] colorWithAlphaComponent: 0.5]];
-			}	
-
+				if(r == 0)
+					[sunriseSunsetInfoWindow setBackgroundColor: [[UIColor whiteColor] colorWithAlphaComponent: 0.5]];
+				else
+					[sunriseSunsetInfoWindow setBackgroundColor: [[UIColor blackColor] colorWithAlphaComponent: 0.5]];
+				backupBackgroundColor = [sunriseSunsetInfoWindow backgroundColor];
+			}
 		}
 	}
 
-	- (void)setHidden: (BOOL)arg
+	- (void)hideIfNeeded
 	{
-		[sunriseSunsetInfoWindow setHidden: arg];
+		[sunriseSunsetInfoWindow setHidden: 
+			isLockScreenPresented && !showOnLockScreen
+		 || isStatusBarHidden && hideOnFullScreen
+		 || isControlCenterVisible && !showOnControlCenter
+		 || !isLockScreenPresented && (shouldHideBasedOnOrientation || isBlacklistedAppInFront)];
+	}
+
+	- (void)openDoubleTapApp
+	{
+		if(enableDoubleTap && doubleTapIdentifier)
+			[[UIApplication sharedApplication] launchApplicationWithIdentifier: doubleTapIdentifier suspended: NO];
+	}
+
+	- (void)openHoldApp
+	{
+		if(enableHold && holdIdentifier)
+			[[UIApplication sharedApplication] launchApplicationWithIdentifier: holdIdentifier suspended: NO];
 	}
 
 @end
@@ -302,8 +319,7 @@ static void loadDeviceScreenDimensions()
 
 	NSString *currentApp = [(SBApplication*)[self _accessibilityFrontMostApplication] bundleIdentifier];
 	isBlacklistedAppInFront = blackListedApps && currentApp && [blackListedApps containsObject: currentApp];
-
-	[sunriseSunsetInfoObject setHidden: isBlacklistedAppInFront];
+	[sunriseSunsetInfoObject hideIfNeeded];
 }
 
 %end
@@ -312,14 +328,24 @@ static void loadDeviceScreenDimensions()
 
 -(BOOL)isPresented
 {
-	BOOL isPresented = %orig;
+	isLockScreenPresented = %orig;
 
-	if(isPresented || !isBlacklistedAppInFront)
-		[sunriseSunsetInfoObject setHidden: NO];
-	else
-		[sunriseSunsetInfoObject setHidden: YES];
+	[sunriseSunsetInfoObject hideIfNeeded];
 
-	return isPresented;
+	return isLockScreenPresented;
+}
+
+%end
+
+%hook SBControlCenterController
+
+-(BOOL)isVisible
+{
+	isControlCenterVisible = %orig;
+
+	[sunriseSunsetInfoObject hideIfNeeded];
+
+	return isControlCenterVisible;
 }
 
 %end
@@ -336,38 +362,39 @@ static void loadDeviceScreenDimensions()
 
 %end
 
+%hook SBMainDisplaySceneLayoutStatusBarView
+
+- (void)_applyStatusBarHidden: (BOOL)arg1 withAnimation: (long long)arg2 toSceneWithIdentifier: (id)arg3
+{
+	isStatusBarHidden = arg1;
+	[sunriseSunsetInfoObject hideIfNeeded];
+
+	%orig;
+}
+
+%end
+
 static void settingsChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo)
 {
-	if(!pref) pref = [[HBPreferences alloc] initWithIdentifier: @"com.johnzaro.sunrisesunsetinfoprefs"];
-	enabled = [pref boolForKey: @"enabled"];
-	showOnLockScreen = [pref boolForKey: @"showOnLockScreen"];
-	showSunrise = [pref boolForKey: @"showSunrise"];
-	sunrisePrefix = [pref objectForKey: @"sunrisePrefix"];
-	showSunset = [pref boolForKey: @"showSunset"];
-	sunsetPrefix = [pref objectForKey: @"sunsetPrefix"];
-	showSecondTimeInNewLine = [pref boolForKey: @"showSecondTimeInNewLine"];
-	separator = [pref objectForKey: @"separator"];
-	backgroundColorEnabled = [pref boolForKey: @"backgroundColorEnabled"];
-	backgroundCornerRadius = [pref floatForKey: @"backgroundCornerRadius"];
-	customBackgroundColorEnabled = [pref boolForKey: @"customBackgroundColorEnabled"];
-	portraitX = [pref floatForKey: @"portraitX"];
-	portraitY = [pref floatForKey: @"portraitY"];
-	landscapeX = [pref floatForKey: @"landscapeX"];
-	landscapeY = [pref floatForKey: @"landscapeY"];
-	followDeviceOrientation = [pref boolForKey: @"followDeviceOrientation"];
-	width = [pref floatForKey: @"width"];
-	height = [pref floatForKey: @"height"];
-	fontSize = [pref integerForKey: @"fontSize"];
-	boldFont = [pref boolForKey: @"boldFont"];
-	customTextColorEnabled = [pref boolForKey: @"customTextColorEnabled"];
-	alignment = [pref integerForKey: @"alignment"];
-	enableBlackListedApps = [pref boolForKey: @"enableBlackListedApps"];
-
 	if(backgroundColorEnabled && customBackgroundColorEnabled || customTextColorEnabled)
 	{
 		NSDictionary *preferencesDictionary = [NSDictionary dictionaryWithContentsOfFile: @"/var/mobile/Library/Preferences/com.johnzaro.sunrisesunsetinfoprefs.colors.plist"];
 		customBackgroundColor = [SparkColourPickerUtils colourWithString: [preferencesDictionary objectForKey: @"customBackgroundColor"] withFallback: @"#000000:0.50"];
 		customTextColor = [SparkColourPickerUtils colourWithString: [preferencesDictionary objectForKey: @"customTextColor"] withFallback: @"#FF9400"];
+	}
+
+	if(enableDoubleTap)
+	{
+		NSArray *doubleTapApp = [SparkAppList getAppListForIdentifier: @"com.johnzaro.sunrisesunsetinfoprefs.gestureApps" andKey: @"doubleTapApp"];
+		if(doubleTapApp && [doubleTapApp count] == 1)
+			doubleTapIdentifier = doubleTapApp[0];
+	}
+
+	if(enableHold)
+	{
+		NSArray *holdApp = [SparkAppList getAppListForIdentifier: @"com.johnzaro.sunrisesunsetinfoprefs.gestureApps" andKey: @"holdApp"];
+		if(holdApp && [holdApp count] == 1)
+			holdIdentifier = holdApp[0];
 	}
 
 	if(enableBlackListedApps)
@@ -387,41 +414,44 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 	@autoreleasepool
 	{
 		pref = [[HBPreferences alloc] initWithIdentifier: @"com.johnzaro.sunrisesunsetinfoprefs"];
-		[pref registerDefaults:
-		@{
-			@"enabled": @NO,
-			@"showOnLockScreen": @NO,
-			@"showSunrise": @NO,
-			@"sunrisePrefix": @"↑",
-			@"showSunset": @NO,
-			@"sunsetPrefix": @"↓",
-			@"showSecondTimeInNewLine": @NO,
-			@"separator": @" ",
-			@"backgroundColorEnabled": @NO,
-			@"backgroundCornerRadius": @6,
-			@"customBackgroundColorEnabled": @NO,
-			@"portraitX": @5,
-			@"portraitY": @32,
-			@"landscapeX": @5,
-			@"landscapeY": @32,
-			@"followDeviceOrientation": @NO,
-			@"width": @82,
-			@"height": @12,
-			@"fontSize": @8,
-			@"boldFont": @NO,
-			@"customTextColorEnabled": @NO,
-			@"alignment": @1,
-			@"enableBlackListedApps": @NO
-    	}];
-
-		settingsChanged(NULL, NULL, NULL, NULL, NULL);
-
+		[pref registerBool: &enabled default: NO forKey: @"enabled"];
 		if(enabled)
 		{
+			[pref registerBool: &showOnLockScreen default: NO forKey: @"showOnLockScreen"];
+			[pref registerBool: &showOnControlCenter default: NO forKey: @"showOnControlCenter"];
+			[pref registerBool: &hideOnFullScreen default: NO forKey: @"hideOnFullScreen"];
+			[pref registerBool: &hideOnLandscape default: NO forKey: @"hideOnLandscape"];
+			[pref registerBool: &showSunrise default: NO forKey: @"showSunrise"];
+			[pref registerObject: &sunrisePrefix default: @"↑" forKey: @"sunrisePrefix"];
+			[pref registerBool: &showSunset default: NO forKey: @"showSunset"];
+			[pref registerObject: &sunsetPrefix default: @"↓" forKey: @"sunsetPrefix"];
+			[pref registerBool: &showSecondTimeInNewLine default: NO forKey: @"showSecondTimeInNewLine"];
+			[pref registerObject: &separator default: @" " forKey: @"separator"];
+			[pref registerBool: &backgroundColorEnabled default: NO forKey: @"backgroundColorEnabled"];
+			[pref registerInteger: &margin default: 3 forKey: @"margin"];
+			[pref registerFloat: &backgroundCornerRadius default: 6 forKey: @"backgroundCornerRadius"];
+			[pref registerBool: &customBackgroundColorEnabled default: NO forKey: @"customBackgroundColorEnabled"];
+			[pref registerFloat: &portraitX default: 5 forKey: @"portraitX"];
+			[pref registerFloat: &portraitY default: 32 forKey: @"portraitY"];
+			[pref registerFloat: &landscapeX default: 5 forKey: @"landscapeX"];
+			[pref registerFloat: &landscapeY default: 32 forKey: @"landscapeY"];
+			[pref registerBool: &followDeviceOrientation default: NO forKey: @"followDeviceOrientation"];
+			[pref registerBool: &animateMovement default: NO forKey: @"animateMovement"];
+			[pref registerFloat: &width default: 82 forKey: @"width"];
+			[pref registerFloat: &height default: 12 forKey: @"height"];
+			[pref registerInteger: &fontSize default: 8 forKey: @"fontSize"];
+			[pref registerBool: &boldFont default: NO forKey: @"boldFont"];
+			[pref registerBool: &customTextColorEnabled default: NO forKey: @"customTextColorEnabled"];
+			[pref registerInteger: &alignment default: 1 forKey: @"alignment"];
+			[pref registerBool: &enableDoubleTap default: NO forKey: @"enableDoubleTap"];
+			[pref registerBool: &enableHold default: NO forKey: @"enableHold"];
+			[pref registerBool: &enableBlackListedApps default: NO forKey: @"enableBlackListedApps"];
+
+			settingsChanged(NULL, NULL, NULL, NULL, NULL);
+			CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, settingsChanged, CFSTR("com.johnzaro.sunrisesunsetinfoprefs/ReloadPrefs"), NULL, CFNotificationSuspensionBehaviorCoalesce);
+
 			dateFormatter = [[NSDateFormatter alloc] init];
 			[dateFormatter setDateFormat: @"H:mm"];
-
-			CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, settingsChanged, CFSTR("com.johnzaro.sunrisesunsetinfoprefs/reloadprefs"), NULL, CFNotificationSuspensionBehaviorCoalesce);
 
 			%init;
 		}
