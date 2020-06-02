@@ -329,9 +329,7 @@ static void loadDeviceScreenDimensions()
 -(BOOL)isPresented
 {
 	isLockScreenPresented = %orig;
-
 	[sunriseSunsetInfoObject hideIfNeeded];
-
 	return isLockScreenPresented;
 }
 
@@ -342,9 +340,7 @@ static void loadDeviceScreenDimensions()
 -(BOOL)isVisible
 {
 	isControlCenterVisible = %orig;
-
 	[sunriseSunsetInfoObject hideIfNeeded];
-
 	return isControlCenterVisible;
 }
 
@@ -352,12 +348,20 @@ static void loadDeviceScreenDimensions()
 
 %hook _UIStatusBar
 
--(void)setForegroundColor: (UIColor*)color
+- (void)setStyle: (long long)style
 {
 	%orig;
-	
-	if(sunriseSunsetInfoObject && [self styleAttributes] && [[self styleAttributes] imageTintColor]) 
-		[sunriseSunsetInfoObject updateTextColor: [[self styleAttributes] imageTintColor]];
+
+	if(sunriseSunsetInfoObject) 
+		[sunriseSunsetInfoObject updateTextColor: (style == 1) ? [UIColor whiteColor] : [UIColor blackColor]];
+}
+
+- (void)setStyle: (long long)style forPartWithIdentifier: (id)arg2
+{
+	%orig;
+
+	if(sunriseSunsetInfoObject) 
+		[sunriseSunsetInfoObject updateTextColor: (style == 1) ? [UIColor whiteColor] : [UIColor blackColor]];
 }
 
 %end
@@ -368,7 +372,6 @@ static void loadDeviceScreenDimensions()
 {
 	isStatusBarHidden = arg1;
 	[sunriseSunsetInfoObject hideIfNeeded];
-
 	%orig;
 }
 
