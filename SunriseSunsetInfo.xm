@@ -18,6 +18,7 @@ static BOOL showOnLockScreen;
 static BOOL showOnControlCenter;
 static BOOL hideOnFullScreen;
 static BOOL hideOnLandscape;
+static BOOL notchlessSupport;
 static BOOL showSunrise;
 static NSString *sunrisePrefix;
 static BOOL showSunset;
@@ -51,14 +52,17 @@ static NSArray *blackListedApps;
 
 static double screenWidth;
 static double screenHeight;
-static BOOL shouldHideBasedOnOrientation = NO;
-static BOOL isBlacklistedAppInFront = NO;
-static BOOL isLockScreenPresented;
-static BOOL isControlCenterVisible;
-static BOOL isOnLandscape;
-static UIDeviceOrientation deviceOrientation;
 static UIDeviceOrientation orientationOld;
-static BOOL isStatusBarHidden;
+static UIDeviceOrientation deviceOrientation;
+static BOOL isBlacklistedAppInFront = NO;
+static BOOL shouldHideBasedOnOrientation = NO;
+static BOOL isLockScreenPresented = YES;
+static BOOL isControlCenterVisible = NO;
+static BOOL isOnLandscape;
+static BOOL isPeepStatusBarHidden = NO;
+static BOOL isStatusBarHidden = NO;
+static BOOL isAppSwitcherOpen = NO;
+static BOOL isFolderOpen = NO;
 
 static NSMutableString* formattedString()
 {
@@ -121,7 +125,6 @@ static void loadDeviceScreenDimensions()
 			UILongPressGestureRecognizer *holdGestureRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget: self action: @selector(openHoldApp)];
 
 			sunriseSunsetInfoWindow = [[UIWindow alloc] initWithFrame: CGRectMake(0, 0, 0, 0)];
-			[sunriseSunsetInfoWindow setWindowLevel: 100000];
 			[sunriseSunsetInfoWindow _setSecure: YES];
 			[[sunriseSunsetInfoWindow layer] setAnchorPoint: CGPointZero];
 			[sunriseSunsetInfoWindow addSubview: sunriseSunsetInfoLabel];
@@ -151,6 +154,11 @@ static void loadDeviceScreenDimensions()
 	- (void)_updateFrame
 	{
 		orientationOld = nil;
+
+		if(notchlessSupport)
+			[sunriseSunsetInfoWindow setWindowLevel: 100000];
+		else
+			[sunriseSunsetInfoWindow setWindowLevel: 1075];
 
 		if(!backgroundColorEnabled)
 			[sunriseSunsetInfoWindow setBackgroundColor: [UIColor clearColor]];
@@ -280,9 +288,13 @@ static void loadDeviceScreenDimensions()
 	{
 		[sunriseSunsetInfoWindow setHidden: 
 			isLockScreenPresented && !showOnLockScreen
+		|| isLockScreenPresented && !showOnLockScreen
 		 || isStatusBarHidden && hideOnFullScreen
 		 || isControlCenterVisible && !showOnControlCenter
-		 || !isLockScreenPresented && (shouldHideBasedOnOrientation || isBlacklistedAppInFront)];
+		 || isFolderOpen
+		 || isAppSwitcherOpen
+		 || !isLockScreenPresented && (shouldHideBasedOnOrientation || isBlacklistedAppInFront)
+		 || isPeepStatusBarHidden];
 	}
 
 	- (void)openDoubleTapApp
@@ -301,7 +313,7 @@ static void loadDeviceScreenDimensions()
 
 %hook SpringBoard
 
-- (void)applicationDidFinishLaunching: (id)application
+- (void)applicationDidFinishLaunching: (id)application // load module
 {
 	%orig;
 
@@ -313,7 +325,7 @@ static void loadDeviceScreenDimensions()
 	}
 }
 
--(void)frontDisplayDidChange: (id)arg1 
+-(void)frontDisplayDidChange: (id)arg1 // check if opened app is blacklisted
 {
 	%orig;
 
@@ -324,9 +336,9 @@ static void loadDeviceScreenDimensions()
 
 %end
 
-%hook SBCoverSheetPresentationManager
+%hook SBCoverSheetPresentationManager // check if lock screen is presented or not
 
--(BOOL)isPresented
+- (BOOL)isPresented
 {
 	isLockScreenPresented = %orig;
 	[sunriseSunsetInfoObject hideIfNeeded];
@@ -335,7 +347,7 @@ static void loadDeviceScreenDimensions()
 
 %end
 
-%hook SBControlCenterController
+%hook SBControlCenterController // check if control center is presented or not
 
 -(BOOL)isVisible
 {
@@ -346,7 +358,7 @@ static void loadDeviceScreenDimensions()
 
 %end
 
-%hook _UIStatusBar
+%hook _UIStatusBar // update colors based on status bar colors
 
 - (void)setStyle: (long long)style
 {
@@ -366,13 +378,57 @@ static void loadDeviceScreenDimensions()
 
 %end
 
-%hook SBMainDisplaySceneLayoutStatusBarView
+%hook SBMainDisplaySceneLayoutStatusBarView // hide on full screen
 
 - (void)_applyStatusBarHidden: (BOOL)arg1 withAnimation: (long long)arg2 toSceneWithIdentifier: (id)arg3
 {
 	isStatusBarHidden = arg1;
 	[sunriseSunsetInfoObject hideIfNeeded];
 	%orig;
+}
+
+%end
+
+%hook _UIStatusBarForegroundView // support for peep tweak
+
+- (void)setHidden: (BOOL)arg
+{
+	%orig;
+
+	isPeepStatusBarHidden = arg;
+	[sunriseSunsetInfoObject hideIfNeeded];
+}
+
+%end
+
+%hook SBMainSwitcherViewController // check if app switcher is open
+
+-(void)updateWindowVisibilityForSwitcherContentController: (id)arg1
+{
+	%orig;
+
+	isAppSwitcherOpen = [self isMainSwitcherVisible];
+	[sunriseSunsetInfoObject hideIfNeeded];
+}
+
+%end
+
+%hook SBFloatyFolderController // check if a folder is open
+
+- (void)viewWillAppear: (BOOL)arg1
+{
+	%orig;
+
+	isFolderOpen = YES;
+	[sunriseSunsetInfoObject hideIfNeeded];
+}
+
+- (void)viewWillDisappear: (BOOL)arg1
+{
+	%orig;
+
+	isFolderOpen = NO;
+	[sunriseSunsetInfoObject hideIfNeeded];
 }
 
 %end
@@ -424,6 +480,7 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 			[pref registerBool: &showOnControlCenter default: NO forKey: @"showOnControlCenter"];
 			[pref registerBool: &hideOnFullScreen default: NO forKey: @"hideOnFullScreen"];
 			[pref registerBool: &hideOnLandscape default: NO forKey: @"hideOnLandscape"];
+			[pref registerBool: &notchlessSupport default: NO forKey: @"notchlessSupport"];
 			[pref registerBool: &showSunrise default: NO forKey: @"showSunrise"];
 			[pref registerObject: &sunrisePrefix default: @"↑" forKey: @"sunrisePrefix"];
 			[pref registerBool: &showSunset default: NO forKey: @"showSunset"];
