@@ -18,6 +18,7 @@ static BOOL showOnLockScreen;
 static BOOL showOnControlCenter;
 static BOOL hideOnFullScreen;
 static BOOL hideOnLandscape;
+static BOOL hideOnAppSwitcherFolder;
 static BOOL notchlessSupport;
 static BOOL showSunrise;
 static NSString *sunrisePrefix;
@@ -291,8 +292,7 @@ static void loadDeviceScreenDimensions()
 		|| isLockScreenPresented && !showOnLockScreen
 		 || isStatusBarHidden && hideOnFullScreen
 		 || isControlCenterVisible && !showOnControlCenter
-		 || isFolderOpen
-		 || isAppSwitcherOpen
+		 || (isFolderOpen || isAppSwitcherOpen) && hideOnAppSwitcherFolder
 		 || !isLockScreenPresented && (shouldHideBasedOnOrientation || isBlacklistedAppInFront)
 		 || isPeepStatusBarHidden];
 	}
@@ -480,6 +480,7 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 			[pref registerBool: &showOnControlCenter default: NO forKey: @"showOnControlCenter"];
 			[pref registerBool: &hideOnFullScreen default: NO forKey: @"hideOnFullScreen"];
 			[pref registerBool: &hideOnLandscape default: NO forKey: @"hideOnLandscape"];
+			[pref registerBool: &hideOnAppSwitcherFolder default: NO forKey: @"hideOnAppSwitcherFolder"];
 			[pref registerBool: &notchlessSupport default: NO forKey: @"notchlessSupport"];
 			[pref registerBool: &showSunrise default: NO forKey: @"showSunrise"];
 			[pref registerObject: &sunrisePrefix default: @"↑" forKey: @"sunrisePrefix"];
@@ -511,7 +512,16 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 			CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, settingsChanged, CFSTR("com.johnzaro.sunrisesunsetinfoprefs/ReloadPrefs"), NULL, CFNotificationSuspensionBehaviorCoalesce);
 
 			dateFormatter = [[NSDateFormatter alloc] init];
-			[dateFormatter setDateFormat: @"H:mm"];
+
+			NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+			[formatter setLocale: [NSLocale currentLocale]];
+			[formatter setDateStyle: NSDateFormatterNoStyle];
+			[formatter setTimeStyle: NSDateFormatterShortStyle];
+			NSString *dateString = [formatter stringFromDate: [NSDate date]];
+			if([dateString rangeOfString: [formatter AMSymbol]].location == NSNotFound && [dateString rangeOfString: [formatter PMSymbol]].location == NSNotFound)
+				[dateFormatter setDateFormat: @"H:mm"];
+			else
+				[dateFormatter setDateFormat: @"h:mm a"];
 
 			%init;
 		}
