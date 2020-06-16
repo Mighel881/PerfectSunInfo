@@ -8,7 +8,7 @@
 - (BOOL)isVisible;
 @end
 
-@interface SunriseSunsetInfo: NSObject
+@interface PerfectSunInfo: NSObject
 {
     UIWindow *sunriseSunsetInfoWindow;
     UILabel *sunriseSunsetInfoLabel;

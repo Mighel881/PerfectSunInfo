@@ -1,4 +1,4 @@
-#import "SunriseSunsetInfo.h"
+#import "PerfectSunInfo.h"
 #import "SparkAppList.h"
 #import "SparkColourPickerUtils.h"
 #import <Cephei/HBPreferences.h>
@@ -110,7 +110,7 @@ static void loadDeviceScreenDimensions()
 	screenHeight = [[UIScreen mainScreen] _referenceBounds].size.height;
 }
 
-@implementation SunriseSunsetInfo
+@implementation PerfectSunInfo
 
 	- (id)init
 	{
@@ -320,7 +320,7 @@ static void loadDeviceScreenDimensions()
 	loadDeviceScreenDimensions();
 	if(!sunriseSunsetInfoObject) 
 	{
-		sunriseSunsetInfoObject = [[SunriseSunsetInfo alloc] init];
+		sunriseSunsetInfoObject = [[PerfectSunInfo alloc] init];
 		[sunriseSunsetInfoObject updateText];
 	}
 }
