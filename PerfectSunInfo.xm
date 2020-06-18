@@ -15,6 +15,7 @@ NSDateFormatter *dateFormatter;
 static HBPreferences *pref;
 static BOOL enabled;
 static BOOL showOnLockScreen;
+static BOOL showOnlyOnLockScreen;
 static BOOL showOnControlCenter;
 static BOOL hideOnFullScreen;
 static BOOL hideOnLandscape;
@@ -289,7 +290,7 @@ static void loadDeviceScreenDimensions()
 	{
 		[sunriseSunsetInfoWindow setHidden: 
 			isLockScreenPresented && !showOnLockScreen
-		|| isLockScreenPresented && !showOnLockScreen
+		 || !isLockScreenPresented && showOnlyOnLockScreen
 		 || isStatusBarHidden && hideOnFullScreen
 		 || isControlCenterVisible && !showOnControlCenter
 		 || (isFolderOpen || isAppSwitcherOpen) && hideOnAppSwitcherFolder
@@ -477,6 +478,7 @@ static void settingsChanged(CFNotificationCenterRef center, void *observer, CFSt
 		if(enabled)
 		{
 			[pref registerBool: &showOnLockScreen default: NO forKey: @"showOnLockScreen"];
+			[pref registerBool: &showOnlyOnLockScreen default: NO forKey: @"showOnlyOnLockScreen"];
 			[pref registerBool: &showOnControlCenter default: NO forKey: @"showOnControlCenter"];
 			[pref registerBool: &hideOnFullScreen default: NO forKey: @"hideOnFullScreen"];
 			[pref registerBool: &hideOnLandscape default: NO forKey: @"hideOnLandscape"];
